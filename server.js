@@ -86,28 +86,22 @@ function createTransporter() {
 }
 
 async function sendOtpEmail(email, name, otp) {
-  const transporter = createTransporter();
-  if (!transporter) {
-    console.log(`[DEV FALLBACK] SMTP not configured. OTP for ${email}: ${otp}`);
-    return { delivered: false, devMode: true };
+  if (process.env.MAIL_WEBHOOK_URL) {
+    const res = await fetch(process.env.MAIL_WEBHOOK_URL, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        secret: process.env.MAIL_WEBHOOK_SECRET || 'bharatbiz_mail_secret_2026',
+        to: email,
+        subject: 'Your BharatBiz Email Verification Code',
+        html: '<div style="font-family:sans-serif;padding:20px;"><h2>Verify your BharatBiz account</h2><p>Hi ' + name + ', your 6-digit OTP code is:</p><h1 style="color:#ea580c;letter-spacing:4px;">' + otp + '</h1><p>Expires in 10 minutes.</p></div>'
+      })
+    });
+    if (!res.ok) throw new Error('Webhook email failed');
+    return { delivered: true, devMode: false };
   }
-  await transporter.sendMail({
-    from: process.env.FROM_EMAIL || process.env.SMTP_USER,
-    to: email,
-    subject: 'Your BharatBiz Email Verification Code',
-    html: `
-      <div style="font-family: sans-serif; max-width: 480px; margin: auto; padding: 24px; border: 1px solid #e2e8f0; border-radius: 12px;">
-        <h2 style="color: #0f172a; margin-top: 0;">Verify your BharatBiz account</h2>
-        <p style="color: #475569;">Hi ${name},</p>
-        <p style="color: #475569;">Use the following 6-digit code to verify your email address. It expires in 10 minutes.</p>
-        <div style="font-size: 28px; font-weight: 700; letter-spacing: 6px; color: #ea580c; background: #fff7ed; padding: 14px; text-align: center; border-radius: 8px; margin: 16px 0;">
-          ${otp}
-        </div>
-        <p style="color: #64748b; font-size: 12px;">If you did not request this, you can safely ignore this email.</p>
-      </div>
-    `
-  });
-  return { delivered: true, devMode: false };
+  console.log('[DEV FALLBACK] OTP for ' + email + ': ' + otp);
+  return { delivered: false, devMode: true };
 }
 
 function authMiddleware(req, res, next) {
